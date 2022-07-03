@@ -141,6 +141,12 @@ class IndexedString(object):
         if not bow:
             self.positions = np.array(self.positions)
 
+    def get_sep_idx(self):
+        for idx in range(len(self.inverse_vocab)):
+            if self.inverse_vocab[idx].strip() == 'SEP':
+                return idx
+        return None
+
     def raw_string(self):
         """Returns the original raw string"""
         return self.raw
@@ -409,6 +415,10 @@ class LimeTextExplainer(object):
                           IndexedString(text_instance, bow=self.bow,
                                         split_expression=self.split_expression,
                                         mask_string=self.mask_string))
+        doc_size = indexed_string.num_words()
+        if doc_size <= 1:
+            return None
+
         domain_mapper = TextDomainMapper(indexed_string)
         data, yss, distances = self.__data_labels_distances(
             indexed_string, classifier_fn, num_samples,
@@ -478,6 +488,11 @@ class LimeTextExplainer(object):
         for i, size in enumerate(sample, start=1):
             inactive = self.random_state.choice(features_range, size,
                                                 replace=False)
+            # do not mask out the 'SEP' token
+            sep_idx = indexed_string.get_sep_idx()
+            delete_idx = np.argwhere(inactive == sep_idx)
+            inactive = np.delete(inactive, delete_idx)
+
             data[i, inactive] = 0
             inverse_data.append(indexed_string.inverse_removing(inactive))
         labels = classifier_fn(inverse_data)
